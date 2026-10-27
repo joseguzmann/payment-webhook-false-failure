@@ -57,3 +57,30 @@ def test_expired_link_is_not_a_failure(client, session, payment):
     session.refresh(payment)
     assert payment.status == "expired"
     assert whatsapp(session) == []
+
+
+def test_declined_payment_still_tells_the_customer(client, session, payment):
+    callback(client, payment, "failure", "9")
+
+    session.refresh(payment)
+    assert payment.status == "failed"
+    assert whatsapp(session) == ["❌ We could not process your payment. Please try again."]
+
+
+def test_unknown_code_is_ignored_and_logged_raw(client, session, payment, caplog):
+    """The accepted cost: an unknown code changes nothing, even if it was a real decline."""
+    assert callback(client, payment, "7", "99").json() == {"result": "ignored"}
+
+    session.refresh(payment)
+    assert payment.status == "pending"
+    assert whatsapp(session) == []
+    assert "unhandled status" in caplog.text and "'status': '7'" in caplog.text
+
+
+def test_expired_payment_is_not_reopened_by_a_late_decline(client, session, payment):
+    callback(client, payment, "5", "14")
+    callback(client, payment, "failure", "9")
+
+    session.refresh(payment)
+    assert payment.status == "expired"
+    assert whatsapp(session) == []

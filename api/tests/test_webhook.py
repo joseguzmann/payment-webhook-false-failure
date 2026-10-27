@@ -48,3 +48,12 @@ def test_malformed_callback_is_logged_with_its_body(client, caplog):
 
     assert response.status_code == 400
     assert "malformed callback" in caplog.text and "'tx'" in caplog.text
+
+
+def test_expired_link_is_not_a_failure(client, session, payment):
+    """Found through the new logs: an unpaid link that expired arrived as 5/14."""
+    callback(client, payment, "5", "14")
+
+    session.refresh(payment)
+    assert payment.status == "expired"
+    assert whatsapp(session) == []

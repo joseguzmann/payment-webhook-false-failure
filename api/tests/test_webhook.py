@@ -41,3 +41,10 @@ def test_in_review_callback_changes_nothing(client, session, payment):
     session.refresh(payment)
     assert payment.status == "pending"
     assert whatsapp(session) == []
+
+
+def test_malformed_callback_is_logged_with_its_body(client, caplog):
+    response = client.post("/webhooks/paylink", json={"tx": {"status": "1"}})
+
+    assert response.status_code == 400
+    assert "malformed callback" in caplog.text and "'tx'" in caplog.text

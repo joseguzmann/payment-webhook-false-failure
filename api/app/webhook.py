@@ -4,10 +4,14 @@ Callback body: {"transaction": {"id", "status", "status_detail", "dev_reference"
 dev_reference is our payment id. Status "1" with detail "3" means approved.
 """
 
+import logging
+
 from sqlmodel import Session
 
 from . import notifier
 from .models import Payment, now
+
+log = logging.getLogger("paylink.webhook")
 
 APPROVED = "1"
 # Sent while the gateway's anti-fraud check runs. The final answer comes in a later callback.
@@ -18,11 +22,14 @@ def handle_callback(session: Session, payload: dict) -> str:
     tx = payload["transaction"]
     payment = session.get(Payment, int(tx["dev_reference"]))
     if payment is None:
+        log.warning("callback for unknown payment raw=%s", payload)
         return "unknown_payment"
     if payment.status == "paid":
+        log.info("callback after paid, ignored payment=%s raw=%s", payment.id, payload)
         return "already_paid"
 
     if (tx["status"], tx["status_detail"]) == IN_REVIEW:
+        log.info("in review, waiting for the final callback payment=%s", payment.id)
         return "in_review"
     if tx["status"] == APPROVED:
         # A later approval wins over an earlier failure: the gateway can change its mind.
@@ -33,9 +40,11 @@ def handle_callback(session: Session, payload: dict) -> str:
         payment.status = "failed"
         notifier.send(session, payment.customer, notifier.PAYMENT_FAILED, source="webhook")
     else:
+        log.info("callback after failed, ignored payment=%s raw=%s", payment.id, payload)
         return "already_failed"
 
     payment.updated_at = now()
     session.add(payment)
     session.commit()
+    log.info("payment %s -> %s status=%s detail=%s", payment.id, payment.status, tx["status"], tx["status_detail"])
     return payment.status

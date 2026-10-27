@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from sqlmodel import Session, delete, select
 
@@ -13,6 +13,7 @@ from .models import OutboxMessage, Payment, Trace
 from .paylink import PayLinkClient
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+log = logging.getLogger("paylink.webhook")
 
 
 @asynccontextmanager
@@ -45,7 +46,12 @@ def chat(body: ChatIn, session: Session = Depends(get_session), gateway=Depends(
 
 @app.post("/webhooks/paylink")
 def paylink_webhook(payload: dict, session: Session = Depends(get_session)):
-    return {"result": webhook.handle_callback(session, payload)}
+    try:
+        return {"result": webhook.handle_callback(session, payload)}
+    except (KeyError, TypeError, ValueError):
+        # Before this, a malformed callback failed with no trace of what arrived.
+        log.exception("malformed callback raw=%s", payload)
+        return JSONResponse({"result": "malformed"}, status_code=400)
 
 
 @app.get("/outbox")

@@ -10,6 +10,8 @@ from . import notifier
 from .models import Payment, now
 
 APPROVED = "1"
+# Sent while the gateway's anti-fraud check runs. The final answer comes in a later callback.
+IN_REVIEW = ("0", "36")
 
 
 def handle_callback(session: Session, payload: dict) -> str:
@@ -20,6 +22,8 @@ def handle_callback(session: Session, payload: dict) -> str:
     if payment.status == "paid":
         return "already_paid"
 
+    if (tx["status"], tx["status_detail"]) == IN_REVIEW:
+        return "in_review"
     if tx["status"] == APPROVED:
         # A later approval wins over an earlier failure: the gateway can change its mind.
         payment.status = "paid"

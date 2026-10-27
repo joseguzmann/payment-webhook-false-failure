@@ -33,3 +33,11 @@ def test_in_review_then_approved_customer_only_sees_success(client, session, pay
     session.refresh(payment)
     assert payment.status == "paid"
     assert whatsapp(session) == ["✅ Payment received. Thank you, your order is confirmed."]
+
+
+def test_in_review_callback_changes_nothing(client, session, payment):
+    assert callback(client, payment, "0", "36").json() == {"result": "in_review"}
+
+    session.refresh(payment)
+    assert payment.status == "pending"
+    assert whatsapp(session) == []

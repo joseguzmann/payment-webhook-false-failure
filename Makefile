@@ -1,4 +1,4 @@
-.PHONY: up down test logs
+.PHONY: up down test test-docker logs
 
 up:
 	docker compose up --build -d
@@ -12,3 +12,6 @@ logs:
 
 test:
 	cd api && python -m pytest -q
+
+test-docker:
+	docker compose run --rm --no-deps api python -m pytest -q

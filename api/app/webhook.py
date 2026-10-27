@@ -17,16 +17,19 @@ def handle_callback(session: Session, payload: dict) -> str:
     payment = session.get(Payment, int(tx["dev_reference"]))
     if payment is None:
         return "unknown_payment"
-    if payment.status != "pending":
-        return "already_final"
+    if payment.status == "paid":
+        return "already_paid"
 
     if tx["status"] == APPROVED:
+        # A later approval wins over an earlier failure: the gateway can change its mind.
         payment.status = "paid"
         notifier.send(session, payment.customer, notifier.PAYMENT_OK, source="webhook")
         notifier.send(session, payment.customer, notifier.RECEIPT, source="webhook", channel="email")
-    else:
+    elif payment.status == "pending":
         payment.status = "failed"
         notifier.send(session, payment.customer, notifier.PAYMENT_FAILED, source="webhook")
+    else:
+        return "already_failed"
 
     payment.updated_at = now()
     session.add(payment)

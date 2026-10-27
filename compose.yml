@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: payments
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d payments"]
+      interval: 2s
+      retries: 15
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgresql+psycopg://demo:demo@db:5432/payments
+      GATEWAY_URL: http://gateway:8001
+      CALLBACK_URL: http://api:8000/webhooks/paylink
+    ports: ["8000:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  gateway:
+    build: ./gateway-mock
+    environment:
+      PUBLIC_URL: http://localhost:8001
+      CALLBACK_DELAY_SECONDS: "5"
+    ports: ["8001:8001"]
